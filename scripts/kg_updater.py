@@ -1,12 +1,12 @@
-"""Updates the JSON-LD Knowledge Graph using Claude API for entity/relationship extraction."""
+"""Updates the JSON-LD Knowledge Graph using Claude Code CLI for entity/relationship extraction."""
 
 import json
 import re
+import subprocess
+import sys
 from datetime import date
 from pathlib import Path
 from typing import Any
-
-import anthropic
 
 from sources.base import SourceItem
 
@@ -19,7 +19,7 @@ CONTEXT = {
     "xsd": "http://www.w3.org/2001/XMLSchema#",
 }
 
-EXTRACTION_SYSTEM = """\
+_EXTRACTION_PROMPT = """\
 You are a Knowledge Graph extraction assistant for Kubernetes and LLM inference projects.
 Given a batch of GitHub Issues and Pull Requests from a technical community, extract
 entities and relationships and output them as a JSON-LD graph node array.
@@ -52,8 +52,29 @@ IRI patterns:
 - Discussion:  cwkr:discussion/<source-id-slug>/<YYYY-MM-DD>
 
 Slugs: lowercase, hyphens only.
-Return ONLY a raw JSON array of nodes. No markdown, no explanation.
+Return ONLY a raw JSON array of nodes. No markdown fences, no explanation.
+
 """
+
+
+def _call_claude(prompt: str, timeout: int = 300) -> str:
+    """Invoke Claude Code CLI non-interactively and return stdout."""
+    try:
+        result = subprocess.run(
+            ["claude", "-p", prompt],
+            capture_output=True,
+            text=True,
+            timeout=timeout,
+        )
+    except FileNotFoundError:
+        print("[KGUpdater] ERROR: 'claude' command not found. Is Claude Code CLI installed?", file=sys.stderr)
+        raise
+    except subprocess.TimeoutExpired:
+        print(f"[KGUpdater] ERROR: claude CLI timed out after {timeout}s.", file=sys.stderr)
+        raise
+    if result.returncode != 0:
+        raise RuntimeError(f"claude CLI exited {result.returncode}:\n{result.stderr[:500]}")
+    return result.stdout.strip()
 
 
 def _load_graph() -> dict[str, Any]:
@@ -99,6 +120,8 @@ def _merge_nodes(existing: list[dict], new_nodes: list[dict]) -> list[dict]:
 
 def _extract_json(text: str) -> list[dict]:
     text = text.strip()
+    text = re.sub(r"^```[a-z]*\n?", "", text)
+    text = re.sub(r"\n?```$", "", text)
     match = re.search(r"\[.*\]", text, re.DOTALL)
     if match:
         return json.loads(match.group())
@@ -107,6 +130,7 @@ def _extract_json(text: str) -> list[dict]:
 
 def _build_prompt(source_id: str, component_iri: str, items: list[SourceItem], run_date: date) -> str:
     lines = [
+        _EXTRACTION_PROMPT,
         f"Source: {source_id}",
         f"Component IRI: {component_iri}",
         f"Date: {run_date}",
@@ -120,11 +144,7 @@ def _build_prompt(source_id: str, component_iri: str, items: list[SourceItem], r
 
 
 def update_graph(source_items: dict[str, list[SourceItem]], run_date: date) -> None:
-    """Extract entities from all source items and merge into the Knowledge Graph.
-
-    source_items: {source_id: [SourceItem, ...]}
-    """
-    client = anthropic.Anthropic()
+    """Extract entities from all source items and merge into the Knowledge Graph."""
     graph = _load_graph()
 
     for source_id, items in source_items.items():
@@ -137,20 +157,18 @@ def update_graph(source_items: dict[str, list[SourceItem]], run_date: date) -> N
 
         prompt = _build_prompt(source_id, component_iri, items, run_date)
 
-        response = client.messages.create(
-            model="claude-sonnet-4-6",
-            max_tokens=4096,
-            system=EXTRACTION_SYSTEM,
-            messages=[{"role": "user", "content": prompt}],
-        )
+        try:
+            raw = _call_claude(prompt)
+        except Exception as e:
+            print(f"[KGUpdater] Claude CLI error for '{source_id}': {e}")
+            continue
 
-        raw = response.content[0].text
         try:
             new_nodes = _extract_json(raw)
             graph["@graph"] = _merge_nodes(graph["@graph"], new_nodes)
             print(f"[KGUpdater] Merged {len(new_nodes)} nodes from '{source_id}'.")
         except (json.JSONDecodeError, ValueError) as e:
-            print(f"[KGUpdater] Parse error for '{source_id}': {e}\nRaw output (first 500):\n{raw[:500]}")
+            print(f"[KGUpdater] Parse error for '{source_id}': {e}\nRaw (first 500):\n{raw[:500]}")
 
     _save_graph(graph)
     print(f"[KGUpdater] Graph saved → {GRAPH_PATH}")

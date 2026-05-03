@@ -3,10 +3,13 @@
 Usage:
     python scripts/daily_routine.py [--hours 24] [--no-push] [--config config.yaml]
 
-Required environment variables:
-    ANTHROPIC_API_KEY   – Anthropic API key
-    GITHUB_TOKEN        – GitHub PAT (optional; unauthenticated = 60 req/h)
-                          Automatically available in GitHub Actions as GITHUB_TOKEN.
+Requirements:
+    - Claude Code CLI installed and authenticated (`claude` in PATH)
+    - GITHUB_TOKEN env var (optional but recommended; 60 req/h without it)
+    - Run from repo root or scripts/ directory
+
+Typical invocation via cron wrapper:
+    scripts/run_daily.sh
 """
 
 import argparse
@@ -18,7 +21,6 @@ from pathlib import Path
 
 import yaml
 
-# Allow running from repo root or scripts/
 _SCRIPTS_DIR = Path(__file__).parent
 sys.path.insert(0, str(_SCRIPTS_DIR))
 
@@ -29,20 +31,17 @@ from summary_writer import write_summaries
 _REPO_ROOT = _SCRIPTS_DIR.parent
 
 
-def _load_config(config_path: Path) -> list[dict]:
-    with config_path.open() as f:
-        cfg = yaml.safe_load(f)
-    return cfg.get("sources", [])
-
-
 def _check_env() -> bool:
-    missing = [v for v in ("ANTHROPIC_API_KEY",) if not os.getenv(v)]
-    if missing:
-        print(f"[daily_routine] Missing required env vars: {', '.join(missing)}")
-        return False
+    ok = True
+    # Verify claude CLI is available
+    result = subprocess.run(["which", "claude"], capture_output=True)
+    if result.returncode != 0:
+        print("[daily_routine] ERROR: 'claude' CLI not found in PATH.", file=sys.stderr)
+        print("[daily_routine]   Install Claude Code: https://claude.ai/code", file=sys.stderr)
+        ok = False
     if not os.getenv("GITHUB_TOKEN"):
-        print("[daily_routine] GITHUB_TOKEN not set — using unauthenticated GitHub API (60 req/h).")
-    return True
+        print("[daily_routine] GITHUB_TOKEN not set — unauthenticated GitHub API (60 req/h).")
+    return ok
 
 
 def _git_commit_and_push(run_date: date) -> None:
@@ -71,6 +70,12 @@ def _git_commit_and_push(run_date: date) -> None:
         print(f"[daily_routine] Git error: {e}")
 
 
+def _load_config(config_path: Path) -> list[dict]:
+    with config_path.open() as f:
+        cfg = yaml.safe_load(f)
+    return cfg.get("sources", [])
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description="Daily data collection → Knowledge Graph routine")
     parser.add_argument("--hours", type=int, default=24, help="Hours of history to fetch (default: 24)")
@@ -90,7 +95,6 @@ def main() -> None:
         print("[daily_routine] No sources configured in config.yaml. Exiting.")
         sys.exit(1)
 
-    # Collect items from all configured sources
     all_items: dict[str, list[SourceItem]] = {}
 
     for cfg in source_configs:
@@ -109,15 +113,12 @@ def main() -> None:
         items = adapter.fetch(since=since)
         all_items[source_id] = items
 
-    # Update Knowledge Graph
     print("[daily_routine] Updating Knowledge Graph...")
     update_graph(all_items, run_date)
 
-    # Write summaries
     print("[daily_routine] Writing summaries...")
     write_summaries(all_items, run_date)
 
-    # Commit and push
     if not args.no_push:
         _git_commit_and_push(run_date)
 

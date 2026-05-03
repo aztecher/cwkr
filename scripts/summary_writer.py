@@ -1,15 +1,15 @@
-"""Generates Markdown summaries for each source using Claude API."""
+"""Generates Markdown summaries for each source using Claude Code CLI."""
 
+import subprocess
+import sys
 from datetime import date
 from pathlib import Path
-
-import anthropic
 
 from sources.base import SourceItem
 
 SUMMARIES_DIR = Path(__file__).parent.parent / "summaries"
 
-SUMMARY_SYSTEM = """\
+_SUMMARY_PROMPT = """\
 You are a technical writer summarising GitHub activity for Kubernetes and LLM inference communities.
 Given a list of Issues and Pull Requests, produce a concise Markdown summary.
 
@@ -31,7 +31,28 @@ Bullet list of technical concepts, tools, or projects referenced (skip if none).
 
 Write in English. Be concise and technical. Omit pleasantries.
 If there are no items, write a single line: _No activity in this period._
+
 """
+
+
+def _call_claude(prompt: str, timeout: int = 300) -> str:
+    """Invoke Claude Code CLI non-interactively and return stdout."""
+    try:
+        result = subprocess.run(
+            ["claude", "-p", prompt],
+            capture_output=True,
+            text=True,
+            timeout=timeout,
+        )
+    except FileNotFoundError:
+        print("[SummaryWriter] ERROR: 'claude' command not found. Is Claude Code CLI installed?", file=sys.stderr)
+        raise
+    except subprocess.TimeoutExpired:
+        print(f"[SummaryWriter] ERROR: claude CLI timed out after {timeout}s.", file=sys.stderr)
+        raise
+    if result.returncode != 0:
+        raise RuntimeError(f"claude CLI exited {result.returncode}:\n{result.stderr[:500]}")
+    return result.stdout.strip()
 
 
 def _build_content(items: list[SourceItem]) -> str:
@@ -41,11 +62,7 @@ def _build_content(items: list[SourceItem]) -> str:
 
 
 def write_summaries(source_items: dict[str, list[SourceItem]], run_date: date) -> None:
-    """Generate and save a Markdown summary per source.
-
-    source_items: {source_id: [SourceItem, ...]}
-    """
-    client = anthropic.Anthropic()
+    """Generate and save a Markdown summary per source."""
     date_dir = SUMMARIES_DIR / str(run_date.year) / f"{run_date.month:02d}" / str(run_date)
     date_dir.mkdir(parents=True, exist_ok=True)
 
@@ -65,24 +82,20 @@ def write_summaries(source_items: dict[str, list[SourceItem]], run_date: date) -
 
         print(f"[SummaryWriter] Summarising '{source_id}' ({len(items)} items)...")
 
-        response = client.messages.create(
-            model="claude-sonnet-4-6",
-            max_tokens=2048,
-            system=SUMMARY_SYSTEM,
-            messages=[
-                {
-                    "role": "user",
-                    "content": (
-                        f"Source: {source_id}\n"
-                        f"Date: {run_date}\n"
-                        f"Items: {len(items)}\n\n"
-                        + _build_content(items)
-                    ),
-                }
-            ],
+        prompt = (
+            _SUMMARY_PROMPT
+            + f"Source: {source_id}\n"
+            + f"Date: {run_date}\n"
+            + f"Items: {len(items)}\n\n"
+            + _build_content(items)
         )
 
-        body = response.content[0].text
+        try:
+            body = _call_claude(prompt)
+        except Exception as e:
+            print(f"[SummaryWriter] Claude CLI error for '{source_id}': {e}")
+            body = f"_Summary generation failed: {e}_"
+
         out_path.write_text(f"# {source_id} — {run_date}\n\n{body}\n", encoding="utf-8")
         print(f"[SummaryWriter] Written: {out_path.name}")
 

@@ -1,0 +1,22 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(git *)",
+      "Bash(python *)",
+      "Bash(python3 *)",
+      "Bash(pip *)",
+      "Bash(pip3 *)",
+      "Bash(claude *)",
+      "Bash(bash setup.sh*)",
+      "Bash(bash scripts/run_daily.sh*)",
+      "Bash(scripts/run_daily.sh*)",
+      "Bash(curl https://api.github.com/*)",
+      "Read(knowledge-graph/*)",
+      "Read(summaries/*)",
+      "Read(scripts/*)",
+      "Read(config.yaml)",
+      "Read(CLAUDE.md)",
+      "Read(AGENTS.md)"
+    ]
+  }
+}
