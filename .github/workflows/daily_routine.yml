@@ -1,0 +1,50 @@
+name: Daily Knowledge Graph Update
+
+on:
+  schedule:
+    # Runs at 09:00 UTC every day (= 18:00 JST)
+    - cron: "0 9 * * *"
+  workflow_dispatch:
+    inputs:
+      hours:
+        description: "Hours of Slack history to fetch"
+        required: false
+        default: "24"
+
+permissions:
+  contents: write
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: scripts/requirements.txt
+
+      - name: Install dependencies
+        run: pip install -r scripts/requirements.txt
+
+      - name: Configure git
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: Run daily routine
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          SLACK_TOKEN_LLMD:  ${{ secrets.SLACK_TOKEN_LLMD }}
+          SLACK_TOKEN_K8S:   ${{ secrets.SLACK_TOKEN_K8S }}
+        run: |
+          HOURS="${{ github.event.inputs.hours || '24' }}"
+          python scripts/daily_routine.py --hours "$HOURS"

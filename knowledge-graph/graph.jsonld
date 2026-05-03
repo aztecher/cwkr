@@ -1,0 +1,53 @@
+{
+  "@context": {
+    "@vocab": "https://github.com/aztecher/ckwr/ontology#",
+    "ckwr": "https://github.com/aztecher/ckwr/ontology#",
+    "schema": "https://schema.org/",
+    "xsd": "http://www.w3.org/2001/XMLSchema#"
+  },
+  "meta": {
+    "created": "2026-05-03",
+    "last_updated": "2026-05-03",
+    "version": "0.1.0",
+    "sources": [
+      "llm-d/sig-autoscaling",
+      "llm-d/sig-benchmarking",
+      "kubernetes/sig-network-multi-network"
+    ]
+  },
+  "@graph": [
+    {
+      "@id": "ckwr:project/llm-d",
+      "@type": "ckwr:Project",
+      "ckwr:name": "llm-d",
+      "ckwr:url": "https://github.com/llm-d"
+    },
+    {
+      "@id": "ckwr:project/kubernetes",
+      "@type": "ckwr:Project",
+      "ckwr:name": "Kubernetes",
+      "ckwr:url": "https://github.com/kubernetes"
+    },
+    {
+      "@id": "ckwr:component/llm-d/sig-autoscaling",
+      "@type": "ckwr:Component",
+      "ckwr:name": "sig-autoscaling",
+      "ckwr:partOf": {"@id": "ckwr:project/llm-d"},
+      "ckwr:source": "llm-d/#sig-autoscaling"
+    },
+    {
+      "@id": "ckwr:component/llm-d/sig-benchmarking",
+      "@type": "ckwr:Component",
+      "ckwr:name": "sig-benchmarking",
+      "ckwr:partOf": {"@id": "ckwr:project/llm-d"},
+      "ckwr:source": "llm-d/#sig-benchmarking"
+    },
+    {
+      "@id": "ckwr:component/kubernetes/sig-network-multi-network",
+      "@type": "ckwr:Component",
+      "ckwr:name": "sig-network-multi-network",
+      "ckwr:partOf": {"@id": "ckwr:project/kubernetes"},
+      "ckwr:source": "kubernetes/#sig-network-multi-network"
+    }
+  ]
+}
