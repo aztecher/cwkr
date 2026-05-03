@@ -8,6 +8,8 @@ from typing import Any
 
 import anthropic
 
+from sources.base import SourceItem
+
 GRAPH_PATH = Path(__file__).parent.parent / "knowledge-graph" / "graph.jsonld"
 
 CONTEXT = {
@@ -19,39 +21,38 @@ CONTEXT = {
 
 EXTRACTION_SYSTEM = """\
 You are a Knowledge Graph extraction assistant for Kubernetes and LLM inference projects.
-Given Slack messages from a technical community channel, extract entities and relationships
-and output them as JSON-LD graph nodes.
+Given a batch of GitHub Issues and Pull Requests from a technical community, extract
+entities and relationships and output them as a JSON-LD graph node array.
 
 Entity types:
-- ckwr:Person       – community members mentioned or participating
-- ckwr:Issue        – GitHub issues (e.g. "issue #123")
-- ckwr:PullRequest  – GitHub PRs (e.g. "PR #456")
-- ckwr:Feature      – proposed or discussed features
+- ckwr:Person       – contributors (use GitHub login as slug)
+- ckwr:Issue        – GitHub issues
+- ckwr:PullRequest  – GitHub PRs
+- ckwr:Feature      – proposed or discussed features / capabilities
 - ckwr:Concept      – technical concepts, algorithms, methodologies
-- ckwr:Tool         – software tools or frameworks
-- ckwr:Discussion   – the conversation itself (one per channel-day batch)
+- ckwr:Tool         – software tools or frameworks mentioned
+- ckwr:Discussion   – a summary node for this batch (one per source-day)
 
-Relationship properties (as JSON-LD object properties):
+Relationship properties:
 - ckwr:participatesIn  Person → Discussion
 - ckwr:mentions        Discussion → any Entity
-- ckwr:relatedTo       Entity → Entity
+- ckwr:relatedTo       Entity → Entity  (bidirectional concept links)
 - ckwr:resolves        PullRequest → Issue
 - ckwr:dependsOn       Entity → Entity
 - ckwr:createdBy       Entity → Person
-- ckwr:occursIn        Discussion → Component (use existing IDs)
+- ckwr:occursIn        Discussion → Component
 
-IDs must use the pattern:
-- Person:      ckwr:person/<slack-username-or-name-slug>
-- Issue:       ckwr:issue/<repo>/<number>
-- PR:          ckwr:pr/<repo>/<number>
+IRI patterns:
+- Person:      ckwr:person/<github-login>
+- Issue:       ckwr:issue/<owner>/<repo>/<number>
+- PullRequest: ckwr:pr/<owner>/<repo>/<number>
 - Feature:     ckwr:feature/<slug>
 - Concept:     ckwr:concept/<slug>
 - Tool:        ckwr:tool/<slug>
-- Discussion:  ckwr:discussion/<channel>/<YYYY-MM-DD>
+- Discussion:  ckwr:discussion/<source-id-slug>/<YYYY-MM-DD>
 
-Slugs should be lowercase-hyphenated.
-Return ONLY a JSON array of new or updated nodes (no duplicates with existing IDs unless updating).
-Do not wrap in markdown.
+Slugs: lowercase, hyphens only.
+Return ONLY a raw JSON array of nodes. No markdown, no explanation.
 """
 
 
@@ -73,14 +74,12 @@ def _save_graph(graph: dict[str, Any]) -> None:
 
 
 def _merge_nodes(existing: list[dict], new_nodes: list[dict]) -> list[dict]:
-    """Merge new_nodes into existing, updating by @id."""
     index = {node["@id"]: i for i, node in enumerate(existing) if "@id" in node}
     for node in new_nodes:
         nid = node.get("@id")
         if not nid:
             continue
         if nid in index:
-            # Merge: update existing node with new fields, extend list fields
             target = existing[index[nid]]
             for k, v in node.items():
                 if k not in target:
@@ -88,9 +87,10 @@ def _merge_nodes(existing: list[dict], new_nodes: list[dict]) -> list[dict]:
                 elif isinstance(v, list) and isinstance(target[k], list):
                     seen = {json.dumps(x, sort_keys=True) for x in target[k]}
                     for item in v:
-                        if json.dumps(item, sort_keys=True) not in seen:
+                        serialised = json.dumps(item, sort_keys=True)
+                        if serialised not in seen:
                             target[k].append(item)
-                            seen.add(json.dumps(item, sort_keys=True))
+                            seen.add(serialised)
         else:
             existing.append(node)
             index[nid] = len(existing) - 1
@@ -105,37 +105,37 @@ def _extract_json(text: str) -> list[dict]:
     return json.loads(text)
 
 
-def update_graph(channel_messages: dict[str, list[dict[str, Any]]], run_date: date) -> None:
-    """Extract entities from all channel messages and update the Knowledge Graph.
+def _build_prompt(source_id: str, component_iri: str, items: list[SourceItem], run_date: date) -> str:
+    lines = [
+        f"Source: {source_id}",
+        f"Component IRI: {component_iri}",
+        f"Date: {run_date}",
+        f"Items: {len(items)}",
+        "",
+    ]
+    for item in items:
+        lines.append("---")
+        lines.append(item.to_text())
+    return "\n".join(lines)
 
-    channel_messages: {"workspace/channel": [msg, ...]}
+
+def update_graph(source_items: dict[str, list[SourceItem]], run_date: date) -> None:
+    """Extract entities from all source items and merge into the Knowledge Graph.
+
+    source_items: {source_id: [SourceItem, ...]}
     """
     client = anthropic.Anthropic()
     graph = _load_graph()
 
-    for channel_key, messages in channel_messages.items():
-        if not messages:
-            print(f"[KGUpdater] No messages for {channel_key}, skipping.")
+    for source_id, items in source_items.items():
+        if not items:
+            print(f"[KGUpdater] No items for '{source_id}', skipping.")
             continue
 
-        print(f"[KGUpdater] Extracting entities from {channel_key} ({len(messages)} messages)...")
+        component_iri = items[0].component_iri
+        print(f"[KGUpdater] Extracting from '{source_id}' ({len(items)} items)...")
 
-        # Build a readable transcript for Claude
-        lines: list[str] = []
-        for msg in messages:
-            lines.append(f"[{msg['datetime']}] {msg['user_name']}: {msg['text']}")
-            for reply in msg.get("replies", []):
-                lines.append(f"  ↳ [{reply['datetime']}] {reply['user_name']}: {reply['text']}")
-        transcript = "\n".join(lines)
-
-        component_id = f"ckwr:component/{channel_key}"
-        prompt = (
-            f"Channel: {channel_key}\n"
-            f"Date: {run_date}\n"
-            f"Component IRI: {component_id}\n\n"
-            f"Messages:\n{transcript}\n\n"
-            "Extract all entities and relationships. Include a ckwr:Discussion node for this batch."
-        )
+        prompt = _build_prompt(source_id, component_iri, items, run_date)
 
         response = client.messages.create(
             model="claude-sonnet-4-6",
@@ -148,9 +148,9 @@ def update_graph(channel_messages: dict[str, list[dict[str, Any]]], run_date: da
         try:
             new_nodes = _extract_json(raw)
             graph["@graph"] = _merge_nodes(graph["@graph"], new_nodes)
-            print(f"[KGUpdater] Merged {len(new_nodes)} nodes from {channel_key}.")
+            print(f"[KGUpdater] Merged {len(new_nodes)} nodes from '{source_id}'.")
         except (json.JSONDecodeError, ValueError) as e:
-            print(f"[KGUpdater] Failed to parse response for {channel_key}: {e}\nRaw:\n{raw[:500]}")
+            print(f"[KGUpdater] Parse error for '{source_id}': {e}\nRaw output (first 500):\n{raw[:500]}")
 
     _save_graph(graph)
-    print(f"[KGUpdater] Knowledge Graph saved to {GRAPH_PATH}.")
+    print(f"[KGUpdater] Graph saved → {GRAPH_PATH}")

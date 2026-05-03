@@ -1,66 +1,69 @@
-"""Generates Markdown summaries for each channel using Claude API."""
+"""Generates Markdown summaries for each source using Claude API."""
 
 from datetime import date
 from pathlib import Path
-from typing import Any
 
 import anthropic
+
+from sources.base import SourceItem
 
 SUMMARIES_DIR = Path(__file__).parent.parent / "summaries"
 
 SUMMARY_SYSTEM = """\
-You are a technical writer summarizing Slack discussions for Kubernetes and LLM inference communities.
-Produce a concise Markdown summary of the provided channel messages.
+You are a technical writer summarising GitHub activity for Kubernetes and LLM inference communities.
+Given a list of Issues and Pull Requests, produce a concise Markdown summary.
 
-Structure your summary as:
+Structure:
 ## Overview
-One paragraph describing the overall themes discussed today.
+One paragraph describing the overall themes of today's activity.
 
 ## Key Topics
 Bullet list of main topics with brief descriptions.
 
-## Notable Decisions / Action Items
-Bullet list of any decisions made, action items, or next steps mentioned.
+## Notable PRs / Issues
+Bullet list: link title to URL, include state (open/closed/merged) and one-line description.
 
-## Mentioned Resources
-Bullet list of GitHub issues, PRs, external links, or tools referenced (if any).
+## Decisions / Action Items
+Bullet list of decisions made or next steps identified (skip if none).
 
-Write in English. Be concise and technical. Omit pleasantries and off-topic small talk.
+## Mentioned Concepts & Tools
+Bullet list of technical concepts, tools, or projects referenced (skip if none).
+
+Write in English. Be concise and technical. Omit pleasantries.
+If there are no items, write a single line: _No activity in this period._
 """
 
 
-def _build_transcript(messages: list[dict[str, Any]]) -> str:
-    lines: list[str] = []
-    for msg in messages:
-        lines.append(f"[{msg['datetime']}] {msg['user_name']}: {msg['text']}")
-        for reply in msg.get("replies", []):
-            lines.append(f"  ↳ [{reply['datetime']}] {reply['user_name']}: {reply['text']}")
-    return "\n".join(lines)
+def _build_content(items: list[SourceItem]) -> str:
+    if not items:
+        return "(no items)"
+    return "\n\n---\n\n".join(item.to_text() for item in items)
 
 
-def write_summaries(channel_messages: dict[str, list[dict[str, Any]]], run_date: date) -> None:
-    """Generate and save a Markdown summary per channel.
+def write_summaries(source_items: dict[str, list[SourceItem]], run_date: date) -> None:
+    """Generate and save a Markdown summary per source.
 
-    channel_messages: {"workspace/channel": [msg, ...]}
+    source_items: {source_id: [SourceItem, ...]}
     """
     client = anthropic.Anthropic()
     date_dir = SUMMARIES_DIR / str(run_date.year) / f"{run_date.month:02d}" / str(run_date)
     date_dir.mkdir(parents=True, exist_ok=True)
 
-    index_entries: list[str] = []
+    index_lines: list[str] = [f"# Daily Summary — {run_date}\n"]
 
-    for channel_key, messages in channel_messages.items():
-        channel_slug = channel_key.replace("/", "_")
-        out_path = date_dir / f"{channel_slug}.md"
+    for source_id, items in source_items.items():
+        slug = source_id.replace("/", "_")
+        out_path = date_dir / f"{slug}.md"
 
-        if not messages:
-            content = f"# {channel_key} — {run_date}\n\n_No messages in the past 24 hours._\n"
-            out_path.write_text(content, encoding="utf-8")
-            index_entries.append(f"- [{channel_key}]({out_path.relative_to(SUMMARIES_DIR)}): no activity")
+        if not items:
+            out_path.write_text(
+                f"# {source_id} — {run_date}\n\n_No activity in this period._\n",
+                encoding="utf-8",
+            )
+            index_lines.append(f"- [{source_id}]({out_path.name}): no activity")
             continue
 
-        print(f"[SummaryWriter] Summarising {channel_key} ({len(messages)} messages)...")
-        transcript = _build_transcript(messages)
+        print(f"[SummaryWriter] Summarising '{source_id}' ({len(items)} items)...")
 
         response = client.messages.create(
             model="claude-sonnet-4-6",
@@ -70,23 +73,22 @@ def write_summaries(channel_messages: dict[str, list[dict[str, Any]]], run_date:
                 {
                     "role": "user",
                     "content": (
-                        f"Channel: {channel_key}\nDate: {run_date}\n\n"
-                        f"Messages:\n{transcript}"
+                        f"Source: {source_id}\n"
+                        f"Date: {run_date}\n"
+                        f"Items: {len(items)}\n\n"
+                        + _build_content(items)
                     ),
                 }
             ],
         )
 
-        summary_md = response.content[0].text
-        header = f"# {channel_key} — {run_date}\n\n"
-        out_path.write_text(header + summary_md + "\n", encoding="utf-8")
-        print(f"[SummaryWriter] Written: {out_path}")
+        body = response.content[0].text
+        out_path.write_text(f"# {source_id} — {run_date}\n\n{body}\n", encoding="utf-8")
+        print(f"[SummaryWriter] Written: {out_path.name}")
 
-        first_line = summary_md.split("\n")[0].lstrip("#").strip()
-        index_entries.append(f"- [{channel_key}]({out_path.relative_to(SUMMARIES_DIR)}): {first_line}")
+        first_heading = next((l.lstrip("#").strip() for l in body.splitlines() if l.startswith("##")), "")
+        index_lines.append(f"- [{source_id}]({out_path.name}): {first_heading}")
 
-    # Write a daily index file
     index_path = date_dir / "index.md"
-    index_content = f"# Daily Summary — {run_date}\n\n" + "\n".join(index_entries) + "\n"
-    index_path.write_text(index_content, encoding="utf-8")
-    print(f"[SummaryWriter] Index written: {index_path}")
+    index_path.write_text("\n".join(index_lines) + "\n", encoding="utf-8")
+    print(f"[SummaryWriter] Index: {index_path}")

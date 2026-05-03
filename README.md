@@ -1,86 +1,105 @@
 # ckwr — Community Knowledge Watch & Report
 
-Daily automated pipeline that collects Slack discussions from the **llm-d** and **Kubernetes** communities, builds a growing Knowledge Graph, and generates human-readable summaries — all stored as versioned history in this repository.
+Daily automated pipeline that collects technical community activity from multiple
+information sources, builds a growing Knowledge Graph, and generates human-readable
+summaries — all stored as versioned history in this repository.
 
-## Tracked Channels
+## Tracked Sources
 
-| Workspace | Channel |
-|---|---|
-| llm-d | `#sig-autoscaling` |
-| llm-d | `#sig-benchmarking` |
-| Kubernetes | `#sig-network-multi-network` |
+| Source ID | Type | Target |
+|---|---|---|
+| `llm-d/sig-autoscaling` | GitHub | llm-d repos — autoscaling issues/PRs |
+| `llm-d/sig-benchmarking` | GitHub | llm-d repos — benchmarking issues/PRs |
+| `kubernetes/sig-network-multi-network` | GitHub | k8snetworkplumbingwg + kubernetes/community |
+
+Sources are configured in [`config.yaml`](./config.yaml) — add new entries to track more.
 
 ## Repository Structure
 
 ```
 ckwr/
+├── config.yaml                          # Source configuration (edit to add sources)
 ├── knowledge-graph/
-│   ├── schema.jsonld        # OWL ontology (classes & properties)
-│   └── graph.jsonld         # Cumulative Knowledge Graph (JSON-LD)
+│   ├── schema.jsonld                    # OWL ontology (classes & properties)
+│   └── graph.jsonld                     # Cumulative Knowledge Graph (JSON-LD)
 ├── summaries/
 │   └── YYYY/MM/YYYY-MM-DD/
-│       ├── index.md                          # Daily index
+│       ├── index.md
 │       ├── llm-d_sig-autoscaling.md
 │       ├── llm-d_sig-benchmarking.md
 │       └── kubernetes_sig-network-multi-network.md
 ├── scripts/
-│   ├── daily_routine.py     # Entry point
-│   ├── slack_reader.py      # Slack Web API reader
-│   ├── kg_updater.py        # Knowledge Graph updater (Claude API)
-│   ├── summary_writer.py    # Markdown summary generator (Claude API)
+│   ├── daily_routine.py                 # Orchestrator entry point
+│   ├── sources/
+│   │   ├── base.py                      # DataSource ABC + SourceItem dataclass
+│   │   ├── github.py                    # GitHub Issues/PR adapter
+│   │   └── __init__.py                  # SOURCE_REGISTRY
+│   ├── kg_updater.py                    # Entity extraction → JSON-LD merge
+│   ├── summary_writer.py                # Markdown summary generation
 │   └── requirements.txt
 └── .github/workflows/
-    └── daily_routine.yml    # GitHub Actions: runs daily at 09:00 UTC
+    └── daily_routine.yml                # Runs daily at 09:00 UTC (18:00 JST)
 ```
+
+## Adding a New Information Source
+
+The system uses a plugin architecture. Each source type is a class implementing
+`DataSource` (see `scripts/sources/base.py`).
+
+**Steps to add a new source type** (e.g. web articles, Zhihu, mailing lists):
+
+1. Create `scripts/sources/<type>.py` implementing `DataSource.fetch()`.
+2. Register it in `scripts/sources/__init__.py` → `SOURCE_REGISTRY`.
+3. Add a block to `config.yaml` with `type: <type>` and source-specific config.
+
+Example stubs are commented out in `config.yaml` (Chipsandcheese, Zhihu).
 
 ## Knowledge Graph Format
 
-The KG is stored as **JSON-LD** (`knowledge-graph/graph.jsonld`), a W3C standard format for Linked Data. It is compatible with:
+`knowledge-graph/graph.jsonld` is a **JSON-LD** document (W3C standard).
+Compatible with:
+- **SPARQL** engines (Apache Jena, Blazegraph, Oxigraph)
+- **rdflib** (Python): `g = rdflib.ConjunctiveGraph(); g.parse("graph.jsonld")`
+- **LLM RAG pipelines** (readable structured JSON)
+- Graph databases that accept JSON-LD import
 
-- **SPARQL** query engines (Apache Jena, Blazegraph, etc.)
-- **rdflib** (Python)
-- **Graph databases** (e.g. import via JSON-LD context)
-- **LLM retrieval** pipelines (structured JSON is directly readable)
-
-The ontology (`schema.jsonld`) defines entity classes (Person, Issue, PR, Feature, Concept, Tool, Discussion) and relationships (participatesIn, mentions, relatedTo, resolves, dependsOn, occursIn).
+The ontology (`schema.jsonld`) defines entity classes and relationship properties.
+New entities are merged incrementally — existing nodes are updated, not duplicated.
 
 ## Summaries
 
-Each daily run produces one Markdown file per channel under `summaries/YYYY/MM/YYYY-MM-DD/`. Summaries include:
-- Overview of the day's themes
-- Key topics discussed
-- Decisions / action items
-- Mentioned issues, PRs, and external resources
+Each daily run writes one Markdown file per source under `summaries/YYYY/MM/YYYY-MM-DD/`.
+Contents: Overview · Key Topics · Notable PRs/Issues · Decisions · Concepts & Tools.
+
+These are designed to be the basis for reports in other formats (e.g. Slack digests,
+email newsletters, Notion pages).
 
 ## Setup
 
-### Required GitHub Secrets
+### GitHub Secret Required
 
-Add the following in **Settings → Secrets and variables → Actions**:
+Add one secret in **Settings → Secrets and variables → Actions**:
 
 | Secret | Description |
 |---|---|
-| `ANTHROPIC_API_KEY` | Anthropic API key |
-| `SLACK_TOKEN_LLMD` | Slack user token (`xoxp-...`) for the llm-d workspace |
-| `SLACK_TOKEN_K8S` | Slack user token (`xoxp-...`) for kubernetes.slack.com |
+| `ANTHROPIC_API_KEY` | Anthropic API key (for Claude entity extraction and summarisation) |
 
-### How to get Slack user tokens
-
-1. Visit `https://<workspace>.slack.com/account/settings`
-2. Under **Personal Access Tokens** (or use the legacy token endpoint for personal use)
-3. Alternatively: create a Slack App in each workspace with `channels:history`, `channels:read`, `users:read` scopes and use its OAuth token
+`GITHUB_TOKEN` is automatically provided by GitHub Actions — no manual setup needed.
 
 ### Run Manually
 
 ```bash
 pip install -r scripts/requirements.txt
-export ANTHROPIC_API_KEY=...
-export SLACK_TOKEN_LLMD=...
-export SLACK_TOKEN_K8S=...
+export ANTHROPIC_API_KEY=sk-ant-...
+export GITHUB_TOKEN=ghp_...        # optional, but recommended
 python scripts/daily_routine.py
-# or: python scripts/daily_routine.py --hours 48 --no-push
+# options:
+#   --hours 48       fetch last 48 hours instead of 24
+#   --no-push        skip git commit and push
+#   --config path    use a different config file
 ```
 
 ## Automation
 
-A GitHub Actions workflow (`daily_routine.yml`) runs automatically every day at **09:00 UTC (18:00 JST)**. It can also be triggered manually via the Actions tab with a custom `hours` parameter.
+GitHub Actions runs the pipeline daily at **09:00 UTC (18:00 JST)**.
+It can also be triggered manually from the Actions tab with a custom `--hours` value.

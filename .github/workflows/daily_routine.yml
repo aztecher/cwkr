@@ -2,12 +2,12 @@ name: Daily Knowledge Graph Update
 
 on:
   schedule:
-    # Runs at 09:00 UTC every day (= 18:00 JST)
+    # 09:00 UTC daily (= 18:00 JST)
     - cron: "0 9 * * *"
   workflow_dispatch:
     inputs:
       hours:
-        description: "Hours of Slack history to fetch"
+        description: "Hours of history to fetch"
         required: false
         default: "24"
 
@@ -20,7 +20,7 @@ jobs:
     timeout-minutes: 30
 
     steps:
-      - name: Checkout repository
+      - name: Checkout
         uses: actions/checkout@v4
         with:
           fetch-depth: 1
@@ -43,8 +43,7 @@ jobs:
       - name: Run daily routine
         env:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
-          SLACK_TOKEN_LLMD:  ${{ secrets.SLACK_TOKEN_LLMD }}
-          SLACK_TOKEN_K8S:   ${{ secrets.SLACK_TOKEN_K8S }}
+          # GITHUB_TOKEN is automatically provided by GitHub Actions (5000 req/h)
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          HOURS="${{ github.event.inputs.hours || '24' }}"
-          python scripts/daily_routine.py --hours "$HOURS"
+          python scripts/daily_routine.py --hours "${{ github.event.inputs.hours || '24' }}"

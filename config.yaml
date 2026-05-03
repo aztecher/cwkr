@@ -1,0 +1,91 @@
+# ckwr data source configuration
+#
+# Each entry under `sources` defines one logical information stream.
+# `type` must match a key in scripts/sources/__init__.py SOURCE_REGISTRY.
+#
+# To add a new source type (e.g. web_article, zhihu, google_groups):
+#   1. Create scripts/sources/<type>.py implementing DataSource
+#   2. Register it in SOURCE_REGISTRY
+#   3. Add a block here with the matching `type` value
+
+sources:
+
+  # ── llm-d SIG Autoscaling ──────────────────────────────────────────
+  - id: llm-d/sig-autoscaling
+    type: github
+    component: "ckwr:component/llm-d/sig-autoscaling"
+    repos:
+      - "llm-d/llm-d"
+      - "llm-d/llm-d-operator"
+    labels:
+      - "sig/autoscaling"
+      - "area/autoscaling"
+    search_terms:
+      - "autoscaling"
+      - "auto-scaling"
+      - "kpa"
+      - "keda"
+      - "hpa"
+      - "inference scaling"
+      - "scale to zero"
+
+  # ── llm-d SIG Benchmarking ─────────────────────────────────────────
+  - id: llm-d/sig-benchmarking
+    type: github
+    component: "ckwr:component/llm-d/sig-benchmarking"
+    repos:
+      - "llm-d/llm-d"
+      - "llm-d/llm-d-benchmark"
+    labels:
+      - "sig/benchmarking"
+      - "area/benchmark"
+      - "area/performance"
+    search_terms:
+      - "benchmark"
+      - "benchmarking"
+      - "performance"
+      - "latency"
+      - "throughput"
+      - "qps"
+      - "ttft"
+      - "tpot"
+
+  # ── Kubernetes SIG Network / Multi-Network ─────────────────────────
+  - id: kubernetes/sig-network-multi-network
+    type: github
+    component: "ckwr:component/kubernetes/sig-network-multi-network"
+    repos:
+      - "k8snetworkplumbingwg/multi-net-spec"
+      - "k8snetworkplumbingwg/multus-cni"
+      - "kubernetes/community"
+      - "kubernetes/enhancements"
+    labels:
+      - "sig/network"
+      - "area/multi-network"
+    search_terms:
+      - "multi-network"
+      - "multiple network"
+      - "multus"
+      - "network-attachment-definition"
+      - "secondary network"
+      - "nad"
+      - "ipvlan"
+      - "macvlan"
+
+  # ── Future sources (examples, commented out) ───────────────────────
+  # - id: chipsandcheese/articles
+  #   type: web_article          # not yet implemented
+  #   component: "ckwr:component/external/chipsandcheese"
+  #   base_url: "https://chipsandcheese.com"
+  #   rss_url: "https://chipsandcheese.com/feed"
+  #   search_terms:
+  #     - "inference"
+  #     - "gpu"
+  #     - "llm"
+  #
+  # - id: zhihu/llm-infra
+  #   type: zhihu                # not yet implemented
+  #   component: "ckwr:component/external/zhihu"
+  #   topics:
+  #     - "LLM推理"
+  #     - "Kubernetes网络"
