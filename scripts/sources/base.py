@@ -19,7 +19,7 @@ class SourceItem:
     created_at: datetime
     updated_at: datetime
     item_type: str       # "issue" | "pr" | "discussion" | "article" | "comment" | ...
-    component_iri: str   # KG component IRI, e.g. "ckwr:component/llm-d/sig-autoscaling"
+    component_iri: str   # KG component IRI, e.g. "cwkr:component/llm-d/sig-autoscaling"
     labels: list[str] = field(default_factory=list)
     metadata: dict[str, Any] = field(default_factory=dict)
 

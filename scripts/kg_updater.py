@@ -13,8 +13,8 @@ from sources.base import SourceItem
 GRAPH_PATH = Path(__file__).parent.parent / "knowledge-graph" / "graph.jsonld"
 
 CONTEXT = {
-    "@vocab": "https://github.com/aztecher/ckwr/ontology#",
-    "ckwr": "https://github.com/aztecher/ckwr/ontology#",
+    "@vocab": "https://github.com/aztecher/cwkr/ontology#",
+    "cwkr": "https://github.com/aztecher/cwkr/ontology#",
     "schema": "https://schema.org/",
     "xsd": "http://www.w3.org/2001/XMLSchema#",
 }
@@ -25,31 +25,31 @@ Given a batch of GitHub Issues and Pull Requests from a technical community, ext
 entities and relationships and output them as a JSON-LD graph node array.
 
 Entity types:
-- ckwr:Person       – contributors (use GitHub login as slug)
-- ckwr:Issue        – GitHub issues
-- ckwr:PullRequest  – GitHub PRs
-- ckwr:Feature      – proposed or discussed features / capabilities
-- ckwr:Concept      – technical concepts, algorithms, methodologies
-- ckwr:Tool         – software tools or frameworks mentioned
-- ckwr:Discussion   – a summary node for this batch (one per source-day)
+- cwkr:Person       – contributors (use GitHub login as slug)
+- cwkr:Issue        – GitHub issues
+- cwkr:PullRequest  – GitHub PRs
+- cwkr:Feature      – proposed or discussed features / capabilities
+- cwkr:Concept      – technical concepts, algorithms, methodologies
+- cwkr:Tool         – software tools or frameworks mentioned
+- cwkr:Discussion   – a summary node for this batch (one per source-day)
 
 Relationship properties:
-- ckwr:participatesIn  Person → Discussion
-- ckwr:mentions        Discussion → any Entity
-- ckwr:relatedTo       Entity → Entity  (bidirectional concept links)
-- ckwr:resolves        PullRequest → Issue
-- ckwr:dependsOn       Entity → Entity
-- ckwr:createdBy       Entity → Person
-- ckwr:occursIn        Discussion → Component
+- cwkr:participatesIn  Person → Discussion
+- cwkr:mentions        Discussion → any Entity
+- cwkr:relatedTo       Entity → Entity  (bidirectional concept links)
+- cwkr:resolves        PullRequest → Issue
+- cwkr:dependsOn       Entity → Entity
+- cwkr:createdBy       Entity → Person
+- cwkr:occursIn        Discussion → Component
 
 IRI patterns:
-- Person:      ckwr:person/<github-login>
-- Issue:       ckwr:issue/<owner>/<repo>/<number>
-- PullRequest: ckwr:pr/<owner>/<repo>/<number>
-- Feature:     ckwr:feature/<slug>
-- Concept:     ckwr:concept/<slug>
-- Tool:        ckwr:tool/<slug>
-- Discussion:  ckwr:discussion/<source-id-slug>/<YYYY-MM-DD>
+- Person:      cwkr:person/<github-login>
+- Issue:       cwkr:issue/<owner>/<repo>/<number>
+- PullRequest: cwkr:pr/<owner>/<repo>/<number>
+- Feature:     cwkr:feature/<slug>
+- Concept:     cwkr:concept/<slug>
+- Tool:        cwkr:tool/<slug>
+- Discussion:  cwkr:discussion/<source-id-slug>/<YYYY-MM-DD>
 
 Slugs: lowercase, hyphens only.
 Return ONLY a raw JSON array of nodes. No markdown, no explanation.

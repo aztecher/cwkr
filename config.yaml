@@ -1,4 +1,4 @@
-# ckwr data source configuration
+# cwkr data source configuration
 #
 # Each entry under `sources` defines one logical information stream.
 # `type` must match a key in scripts/sources/__init__.py SOURCE_REGISTRY.
@@ -11,12 +11,14 @@
 sources:
 
   # ── llm-d SIG Autoscaling ──────────────────────────────────────────
+  # Primary repos: llm-d (main), inference-scheduler, workload-variant-autoscaler
   - id: llm-d/sig-autoscaling
     type: github
-    component: "ckwr:component/llm-d/sig-autoscaling"
+    component: "cwkr:component/llm-d/sig-autoscaling"
     repos:
       - "llm-d/llm-d"
-      - "llm-d/llm-d-operator"
+      - "llm-d/llm-d-inference-scheduler"
+      - "llm-d/llm-d-workload-variant-autoscaler"
     labels:
       - "sig/autoscaling"
       - "area/autoscaling"
@@ -28,14 +30,18 @@ sources:
       - "hpa"
       - "inference scaling"
       - "scale to zero"
+      - "scheduler"
 
   # ── llm-d SIG Benchmarking ─────────────────────────────────────────
+  # Primary repos: llm-d-benchmark, llm-d-prism (perf analysis), llm-d-latency-predictor
   - id: llm-d/sig-benchmarking
     type: github
-    component: "ckwr:component/llm-d/sig-benchmarking"
+    component: "cwkr:component/llm-d/sig-benchmarking"
     repos:
       - "llm-d/llm-d"
       - "llm-d/llm-d-benchmark"
+      - "llm-d/llm-d-prism"
+      - "llm-d/llm-d-latency-predictor"
     labels:
       - "sig/benchmarking"
       - "area/benchmark"
@@ -49,19 +55,26 @@ sources:
       - "qps"
       - "ttft"
       - "tpot"
+      - "profiling"
 
   # ── Kubernetes SIG Network / Multi-Network ─────────────────────────
+  # Primary org: k8snetworkplumbingwg (Network Plumbing Working Group)
+  # Key repos: multus-cni, multi-networkpolicy, multus-dynamic-networks-controller
+  # Also: kubernetes/enhancements for KEPs, kubernetes/community for SIG meeting notes
   - id: kubernetes/sig-network-multi-network
     type: github
-    component: "ckwr:component/kubernetes/sig-network-multi-network"
+    component: "cwkr:component/kubernetes/sig-network-multi-network"
     repos:
-      - "k8snetworkplumbingwg/multi-net-spec"
       - "k8snetworkplumbingwg/multus-cni"
-      - "kubernetes/community"
+      - "k8snetworkplumbingwg/multi-networkpolicy"
+      - "k8snetworkplumbingwg/multus-dynamic-networks-controller"
+      - "k8snetworkplumbingwg/whereabouts"
       - "kubernetes/enhancements"
+      - "kubernetes/community"
     labels:
       - "sig/network"
       - "area/multi-network"
+      - "area/multus"
     search_terms:
       - "multi-network"
       - "multiple network"
@@ -71,11 +84,12 @@ sources:
       - "nad"
       - "ipvlan"
       - "macvlan"
+      - "network plumbing"
 
   # ── Future sources (examples, commented out) ───────────────────────
   # - id: chipsandcheese/articles
   #   type: web_article          # not yet implemented
-  #   component: "ckwr:component/external/chipsandcheese"
+  #   component: "cwkr:component/external/chipsandcheese"
   #   base_url: "https://chipsandcheese.com"
   #   rss_url: "https://chipsandcheese.com/feed"
   #   search_terms:
@@ -85,7 +99,7 @@ sources:
   #
   # - id: zhihu/llm-infra
   #   type: zhihu                # not yet implemented
-  #   component: "ckwr:component/external/zhihu"
+  #   component: "cwkr:component/external/zhihu"
   #   topics:
   #     - "LLM推理"
   #     - "Kubernetes网络"

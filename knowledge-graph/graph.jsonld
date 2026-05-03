@@ -1,7 +1,7 @@
 {
   "@context": {
-    "@vocab": "https://github.com/aztecher/ckwr/ontology#",
-    "ckwr": "https://github.com/aztecher/ckwr/ontology#",
+    "@vocab": "https://github.com/aztecher/cwkr/ontology#",
+    "cwkr": "https://github.com/aztecher/cwkr/ontology#",
     "schema": "https://schema.org/",
     "xsd": "http://www.w3.org/2001/XMLSchema#"
   },
@@ -17,37 +17,37 @@
   },
   "@graph": [
     {
-      "@id": "ckwr:project/llm-d",
-      "@type": "ckwr:Project",
-      "ckwr:name": "llm-d",
-      "ckwr:url": "https://github.com/llm-d"
+      "@id": "cwkr:project/llm-d",
+      "@type": "cwkr:Project",
+      "cwkr:name": "llm-d",
+      "cwkr:url": "https://github.com/llm-d"
     },
     {
-      "@id": "ckwr:project/kubernetes",
-      "@type": "ckwr:Project",
-      "ckwr:name": "Kubernetes",
-      "ckwr:url": "https://github.com/kubernetes"
+      "@id": "cwkr:project/kubernetes",
+      "@type": "cwkr:Project",
+      "cwkr:name": "Kubernetes",
+      "cwkr:url": "https://github.com/kubernetes"
     },
     {
-      "@id": "ckwr:component/llm-d/sig-autoscaling",
-      "@type": "ckwr:Component",
-      "ckwr:name": "sig-autoscaling",
-      "ckwr:partOf": {"@id": "ckwr:project/llm-d"},
-      "ckwr:source": "llm-d/#sig-autoscaling"
+      "@id": "cwkr:component/llm-d/sig-autoscaling",
+      "@type": "cwkr:Component",
+      "cwkr:name": "sig-autoscaling",
+      "cwkr:partOf": {"@id": "cwkr:project/llm-d"},
+      "cwkr:source": "llm-d/#sig-autoscaling"
     },
     {
-      "@id": "ckwr:component/llm-d/sig-benchmarking",
-      "@type": "ckwr:Component",
-      "ckwr:name": "sig-benchmarking",
-      "ckwr:partOf": {"@id": "ckwr:project/llm-d"},
-      "ckwr:source": "llm-d/#sig-benchmarking"
+      "@id": "cwkr:component/llm-d/sig-benchmarking",
+      "@type": "cwkr:Component",
+      "cwkr:name": "sig-benchmarking",
+      "cwkr:partOf": {"@id": "cwkr:project/llm-d"},
+      "cwkr:source": "llm-d/#sig-benchmarking"
     },
     {
-      "@id": "ckwr:component/kubernetes/sig-network-multi-network",
-      "@type": "ckwr:Component",
-      "ckwr:name": "sig-network-multi-network",
-      "ckwr:partOf": {"@id": "ckwr:project/kubernetes"},
-      "ckwr:source": "kubernetes/#sig-network-multi-network"
+      "@id": "cwkr:component/kubernetes/sig-network-multi-network",
+      "@type": "cwkr:Component",
+      "cwkr:name": "sig-network-multi-network",
+      "cwkr:partOf": {"@id": "cwkr:project/kubernetes"},
+      "cwkr:source": "kubernetes/#sig-network-multi-network"
     }
   ]
 }
